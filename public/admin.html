@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据管理后台 - 美团评分计算工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        meituan: '#00C1D4',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .login-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .data-table {
+            font-size: 12px;
+        }
+        .data-table th, .data-table td {
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+        }
+        .json-display {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer;
+            color: #3B82F6;
+            text-decoration: underline;
+        }
+        .json-display:hover {
+            background-color: #EBF8FF;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        .json-content {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .json-formatted {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 登录界面 -->
+    <div id="loginScreen" class="login-container min-h-screen flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <i class="fa fa-shield text-4xl text-primary mb-4"></i>
+                <h1 class="text-2xl font-bold text-gray-800">数据管理后台</h1>
+                <p class="text-gray-600 mt-2">请输入管理员口令</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">管理员口令</label>
+                    <input 
+                        type="password" 
+                        id="passwordInput" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                        placeholder="请输入口令"
+                        maxlength="10"
+                    >
+                </div>
+                
+                <button 
+                    id="loginBtn" 
+                    class="w-full bg-primary hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200"
+                >
+                    <i class="fa fa-sign-in mr-2"></i>登录
+                </button>
+                
+                <div id="errorMsg" class="hidden text-red-500 text-sm text-center">
+                    <i class="fa fa-exclamation-circle mr-1"></i>
+                    口令错误，请重试
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理界面 -->
+    <div id="adminPanel" class="hidden min-h-screen">
+        <!-- 顶部导航 -->
+        <nav class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <i class="fa fa-database text-primary text-xl mr-3"></i>
+                        <h1 class="text-xl font-semibold text-gray-900">数据管理后台</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="refreshBtn" class="bg-secondary hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm">
+                            <i class="fa fa-refresh mr-1"></i>刷新数据
+                        </button>
+                        <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm">
+                            <i class="fa fa-sign-out mr-1"></i>退出
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主要内容 -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- 统计卡片 -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <i class="fa fa-users text-blue-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">总访问量</p>
+                            <p id="totalVisits" class="text-2xl font-semibold text-gray-900">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <i class="fa fa-check-circle text-green-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">成功识别</p>
+                            <p id="successCount" class="text-2xl font-semibold text-gray-900">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-red-100 rounded-lg">
+                            <i class="fa fa-exclamation-triangle text-red-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">失败次数</p>
+                            <p id="errorCount" class="text-2xl font-semibold text-gray-900">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-yellow-100 rounded-lg">
+                            <i class="fa fa-clock-o text-yellow-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">平均响应时间</p>
+                            <p id="avgResponseTime" class="text-2xl font-semibold text-gray-900">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据表格选项卡 -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex">
+                        <button id="accessLogsTab" class="tab-button active py-4 px-6 text-sm font-medium border-b-2 border-primary text-primary">
+                            <i class="fa fa-eye mr-2"></i>访问记录
+                        </button>
+                        <button id="responseLogsTab" class="tab-button py-4 px-6 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                            <i class="fa fa-server mr-2"></i>响应记录
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- 搜索和筛选区域 -->
+                <div class="p-6 border-b border-gray-200 bg-gray-50">
+                    <!-- 访问记录筛选 -->
+                    <div id="accessFilters" class="search-filters">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">时间范围</label>
+                                <select id="accessTimeFilter" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                    <option value="">全部时间</option>
+                                    <option value="today">今天</option>
+                                    <option value="yesterday">昨天</option>
+                                    <option value="week">最近7天</option>
+                                    <option value="month">最近30天</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">省份</label>
+                                <select id="accessRegionFilter" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                    <option value="">全部省份</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">城市</label>
+                                <select id="accessCityFilter" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                    <option value="">全部城市</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">操作系统</label>
+                                <select id="accessOsFilter" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                    <option value="">全部系统</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div class="text-sm text-gray-600">
+                                共 <span id="accessTotalCount">0</span> 条记录
+                            </div>
+                            <div class="flex space-x-2">
+                                <button id="accessResetBtn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
+                                    <i class="fa fa-refresh mr-1"></i>重置筛选
+                                </button>
+                                <button id="accessSearchBtn" class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded text-sm">
+                                    <i class="fa fa-search mr-1"></i>搜索
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 响应记录筛选 -->
+                    <div id="responseFilters" class="search-filters hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">时间范围</label>
+                                <select id="responseTimeFilter" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                    <option value="">全部时间</option>
+                                    <option value="today">今天</option>
+                                    <option value="yesterday">昨天</option>
+                                    <option value="week">最近7天</option>
+                                    <option value="month">最近30天</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                                <select id="responseStatusFilter" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                                    <option value="">全部状态</option>
+                                    <option value="success">成功</option>
+                                    <option value="error">错误</option>
+                                    <option value="timeout">超时</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div class="text-sm text-gray-600">
+                                共 <span id="responseTotalCount">0</span> 条记录
+                            </div>
+                            <div class="flex space-x-2">
+                                <button id="responseResetBtn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
+                                    <i class="fa fa-refresh mr-1"></i>重置筛选
+                                </button>
+                                <button id="responseSearchBtn" class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded text-sm">
+                                    <i class="fa fa-search mr-1"></i>搜索
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 加载状态 -->
+                <div id="loadingState" class="p-8 text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p class="text-gray-600">正在加载数据...</p>
+                </div>
+
+                <!-- 访问记录表格 -->
+                <div id="accessLogsTable" class="tab-content">
+                    <div class="overflow-x-auto">
+                        <table class="data-table w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="text-left">时间</th>
+                                    <th class="text-left">IP地址</th>
+                                    <th class="text-left">地理位置</th>
+                                    <th class="text-left">设备类型</th>
+                                    <th class="text-left">浏览器</th>
+                                    <th class="text-left">操作系统</th>
+                                    <th class="text-left">语言</th>
+                                    <th class="text-left">加载时间</th>
+                                    <th class="text-left">停留时间</th>
+                                    <th class="text-left">操作记录</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accessLogsBody">
+                                <!-- 数据将通过JavaScript填充 -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 访问记录分页 -->
+                    <div id="accessPagination" class="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+                        <div class="text-sm text-gray-600">
+                            显示第 <span id="accessStartRecord">1</span> - <span id="accessEndRecord">20</span> 条，共 <span id="accessTotalRecords">0</span> 条
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button id="accessFirstPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-double-left"></i>
+                            </button>
+                            <button id="accessPrevPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-left"></i>
+                            </button>
+                            <span class="px-3 py-1 text-sm">
+                                第 <span id="accessCurrentPage">1</span> / <span id="accessTotalPages">1</span> 页
+                            </span>
+                            <button id="accessNextPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-right"></i>
+                            </button>
+                            <button id="accessLastPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-double-right"></i>
+                            </button>
+                            <select id="accessPageSize" class="ml-4 px-2 py-1 text-sm border border-gray-300 rounded">
+                                <option value="10">10条/页</option>
+                                <option value="20" selected>20条/页</option>
+                                <option value="50">50条/页</option>
+                                <option value="100">100条/页</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 响应记录表格 -->
+                <div id="responseLogsTable" class="tab-content hidden">
+                    <div class="overflow-x-auto">
+                        <table class="data-table w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="text-left">时间</th>
+                                    <th class="text-left">状态</th>
+                                    <th class="text-left">处理时间</th>
+                                    <th class="text-left">API时间</th>
+                                    <th class="text-left">识别结果</th>
+                                    <th class="text-left">计算评分</th>
+                                    <th class="text-left">图片信息</th>
+                                    <th class="text-left">错误信息</th>
+                                </tr>
+                            </thead>
+                            <tbody id="responseLogsBody">
+                                <!-- 数据将通过JavaScript填充 -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 响应记录分页 -->
+                    <div id="responsePagination" class="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+                        <div class="text-sm text-gray-600">
+                            显示第 <span id="responseStartRecord">1</span> - <span id="responseEndRecord">20</span> 条，共 <span id="responseTotalRecords">0</span> 条
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button id="responseFirstPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-double-left"></i>
+                            </button>
+                            <button id="responsePrevPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-left"></i>
+                            </button>
+                            <span class="px-3 py-1 text-sm">
+                                第 <span id="responseCurrentPage">1</span> / <span id="responseTotalPages">1</span> 页
+                            </span>
+                            <button id="responseNextPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-right"></i>
+                            </button>
+                            <button id="responseLastPage" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+                                <i class="fa fa-angle-double-right"></i>
+                            </button>
+                            <select id="responsePageSize" class="ml-4 px-2 py-1 text-sm border border-gray-300 rounded">
+                                <option value="10">10条/页</option>
+                                <option value="20" selected>20条/页</option>
+                                <option value="50">50条/页</option>
+                                <option value="100">100条/页</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JSON数据弹窗 -->
+    <div id="jsonModal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <!-- 弹窗头部 -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <h3 id="modalTitle" class="text-lg font-semibold text-gray-900">数据详情</h3>
+                <button id="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 弹窗内容 -->
+            <div class="flex-1 p-6 json-content">
+                <div class="mb-4 flex items-center justify-between">
+                    <span class="text-sm text-gray-600">数据格式：JSON</span>
+                    <button id="copyJsonBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                        <i class="fa fa-copy mr-1"></i>复制
+                    </button>
+                </div>
+                <div id="jsonContent" class="json-formatted"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 管理员口令
+        const ADMIN_PASSWORD = '4598';
+        
+        // DOM 元素
+        const loginScreen = document.getElementById('loginScreen');
+        const adminPanel = document.getElementById('adminPanel');
+        const passwordInput = document.getElementById('passwordInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+
+        // 弹窗元素
+        const jsonModal = document.getElementById('jsonModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const jsonContent = document.getElementById('jsonContent');
+        const closeModal = document.getElementById('closeModal');
+        const copyJsonBtn = document.getElementById('copyJsonBtn');
+        
+        // 选项卡元素
+        const accessLogsTab = document.getElementById('accessLogsTab');
+        const responseLogsTab = document.getElementById('responseLogsTab');
+        const accessLogsTable = document.getElementById('accessLogsTable');
+        const responseLogsTable = document.getElementById('responseLogsTable');
+        const loadingState = document.getElementById('loadingState');
+        
+        // 统计元素
+        const totalVisits = document.getElementById('totalVisits');
+        const successCount = document.getElementById('successCount');
+        const errorCount = document.getElementById('errorCount');
+        const avgResponseTime = document.getElementById('avgResponseTime');
+
+        // 当前活动选项卡
+        let currentTab = 'access';
+
+        // 当前弹窗显示的JSON数据
+        let currentJsonData = null;
+
+        // 分页和筛选状态
+        let accessCurrentPage = 1;
+        let accessPageSize = 20;
+        let accessTotalRecords = 0;
+        let accessFilters = {};
+
+        let responseCurrentPage = 1;
+        let responsePageSize = 20;
+        let responseTotalRecords = 0;
+        let responseFilters = {};
+
+        // 原始数据缓存
+        let allAccessLogs = [];
+        let allResponseLogs = [];
+        let filteredAccessLogs = [];
+        let filteredResponseLogs = [];
+
+        // 登录功能
+        function handleLogin() {
+            const password = passwordInput.value.trim();
+            if (password === ADMIN_PASSWORD) {
+                loginScreen.classList.add('hidden');
+                adminPanel.classList.remove('hidden');
+                loadData();
+                errorMsg.classList.add('hidden');
+            } else {
+                errorMsg.classList.remove('hidden');
+                passwordInput.value = '';
+                passwordInput.focus();
+            }
+        }
+
+        // 退出功能
+        function handleLogout() {
+            adminPanel.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+            passwordInput.value = '';
+            passwordInput.focus();
+        }
+
+        // 显示JSON弹窗
+        function showJsonModal(title, data) {
+            modalTitle.textContent = title;
+            currentJsonData = data;
+
+            // 格式化JSON数据
+            const formattedJson = JSON.stringify(data, null, 2);
+            jsonContent.textContent = formattedJson;
+
+            // 显示弹窗
+            jsonModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // 防止背景滚动
+        }
+
+        // 隐藏JSON弹窗
+        function hideJsonModal() {
+            jsonModal.classList.add('hidden');
+            document.body.style.overflow = 'auto'; // 恢复背景滚动
+            currentJsonData = null;
+        }
+
+        // 复制JSON数据
+        function copyJsonData() {
+            if (currentJsonData) {
+                const jsonString = JSON.stringify(currentJsonData, null, 2);
+                navigator.clipboard.writeText(jsonString).then(() => {
+                    // 临时改变按钮文本
+                    const originalText = copyJsonBtn.innerHTML;
+                    copyJsonBtn.innerHTML = '<i class="fa fa-check mr-1"></i>已复制';
+                    copyJsonBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                    copyJsonBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+
+                    setTimeout(() => {
+                        copyJsonBtn.innerHTML = originalText;
+                        copyJsonBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+                        copyJsonBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                });
+            }
+        }
+
+        // 选项卡切换
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // 更新选项卡样式
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active', 'border-primary', 'text-primary');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // 切换筛选区域
+            document.querySelectorAll('.search-filters').forEach(filter => {
+                filter.classList.add('hidden');
+            });
+
+            if (tab === 'access') {
+                accessLogsTab.classList.add('active', 'border-primary', 'text-primary');
+                accessLogsTab.classList.remove('border-transparent', 'text-gray-500');
+                accessLogsTable.classList.remove('hidden');
+                document.getElementById('accessFilters').classList.remove('hidden');
+            } else {
+                responseLogsTab.classList.add('active', 'border-primary', 'text-primary');
+                responseLogsTab.classList.remove('border-transparent', 'text-gray-500');
+                responseLogsTable.classList.remove('hidden');
+                document.getElementById('responseFilters').classList.remove('hidden');
+            }
+        }
+
+        // 加载数据
+        async function loadData() {
+            loadingState.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/admin-data');
+                const data = await response.json();
+
+                if (data.success) {
+                    // 保存原始数据
+                    allAccessLogs = data.accessLogs || [];
+                    allResponseLogs = data.responseLogs || [];
+
+                    // 更新统计信息
+                    updateStatistics(data.statistics);
+
+                    // 初始化筛选选项
+                    initializeFilters();
+
+                    // 应用当前筛选和分页
+                    applyFiltersAndPagination();
+                } else {
+                    console.error('加载数据失败:', data.error);
+                }
+            } catch (error) {
+                console.error('请求失败:', error);
+            } finally {
+                loadingState.classList.add('hidden');
+            }
+        }
+
+        // 初始化筛选选项
+        function initializeFilters() {
+            // 初始化访问记录筛选选项（优先使用IP解析的地理位置）
+            const regions = [...new Set(allAccessLogs.map(log => log.ip_region || log.region).filter(Boolean))];
+            const cities = [...new Set(allAccessLogs.map(log => log.ip_city || log.city).filter(Boolean))];
+            const osList = [...new Set(allAccessLogs.map(log => log.os).filter(Boolean))];
+
+            updateSelectOptions('accessRegionFilter', regions);
+            updateSelectOptions('accessCityFilter', cities);
+            updateSelectOptions('accessOsFilter', osList);
+        }
+
+        // 更新下拉选项
+        function updateSelectOptions(selectId, options) {
+            const select = document.getElementById(selectId);
+            const currentValue = select.value;
+
+            // 保留第一个"全部"选项
+            const firstOption = select.options[0];
+            select.innerHTML = '';
+            select.appendChild(firstOption);
+
+            // 添加新选项
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                select.appendChild(optionElement);
+            });
+
+            // 恢复之前的选择
+            if (currentValue && options.includes(currentValue)) {
+                select.value = currentValue;
+            }
+        }
+
+        // 应用筛选和分页
+        function applyFiltersAndPagination() {
+            if (currentTab === 'access') {
+                applyAccessFilters();
+                updateAccessPagination();
+                displayAccessLogs();
+            } else {
+                applyResponseFilters();
+                updateResponsePagination();
+                displayResponseLogs();
+            }
+        }
+
+        // 应用访问记录筛选
+        function applyAccessFilters() {
+            filteredAccessLogs = allAccessLogs.filter(log => {
+                // 时间筛选
+                if (accessFilters.time && !matchTimeFilter(log.beijing_time, accessFilters.time)) {
+                    return false;
+                }
+
+                // 省份筛选（优先使用IP解析结果）
+                if (accessFilters.region && (log.ip_region || log.region) !== accessFilters.region) {
+                    return false;
+                }
+
+                // 城市筛选（优先使用IP解析结果）
+                if (accessFilters.city && (log.ip_city || log.city) !== accessFilters.city) {
+                    return false;
+                }
+
+                // 操作系统筛选
+                if (accessFilters.os && log.os !== accessFilters.os) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            accessTotalRecords = filteredAccessLogs.length;
+            document.getElementById('accessTotalCount').textContent = accessTotalRecords;
+        }
+
+        // 应用响应记录筛选
+        function applyResponseFilters() {
+            filteredResponseLogs = allResponseLogs.filter(log => {
+                // 时间筛选
+                if (responseFilters.time && !matchTimeFilter(log.beijing_time, responseFilters.time)) {
+                    return false;
+                }
+
+                // 状态筛选
+                if (responseFilters.status && log.status !== responseFilters.status) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            responseTotalRecords = filteredResponseLogs.length;
+            document.getElementById('responseTotalCount').textContent = responseTotalRecords;
+        }
+
+        // 时间筛选匹配
+        function matchTimeFilter(dateTime, timeFilter) {
+            if (!dateTime || !timeFilter) return true;
+
+            const logDate = new Date(dateTime);
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            switch (timeFilter) {
+                case 'today':
+                    return logDate >= today;
+                case 'yesterday':
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    return logDate >= yesterday && logDate < today;
+                case 'week':
+                    const weekAgo = new Date(today);
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    return logDate >= weekAgo;
+                case 'month':
+                    const monthAgo = new Date(today);
+                    monthAgo.setDate(monthAgo.getDate() - 30);
+                    return logDate >= monthAgo;
+                default:
+                    return true;
+            }
+        }
+
+        // 更新统计信息
+        function updateStatistics(stats) {
+            totalVisits.textContent = stats.totalVisits || 0;
+            successCount.textContent = stats.successCount || 0;
+            errorCount.textContent = stats.errorCount || 0;
+            avgResponseTime.textContent = stats.avgResponseTime ? `${stats.avgResponseTime}s` : '-';
+        }
+
+        // 更新访问记录分页信息
+        function updateAccessPagination() {
+            const totalPages = Math.ceil(accessTotalRecords / accessPageSize);
+            const startRecord = (accessCurrentPage - 1) * accessPageSize + 1;
+            const endRecord = Math.min(accessCurrentPage * accessPageSize, accessTotalRecords);
+
+            document.getElementById('accessStartRecord').textContent = accessTotalRecords > 0 ? startRecord : 0;
+            document.getElementById('accessEndRecord').textContent = endRecord;
+            document.getElementById('accessTotalRecords').textContent = accessTotalRecords;
+            document.getElementById('accessCurrentPage').textContent = accessCurrentPage;
+            document.getElementById('accessTotalPages').textContent = totalPages;
+
+            // 更新分页按钮状态
+            document.getElementById('accessFirstPage').disabled = accessCurrentPage === 1;
+            document.getElementById('accessPrevPage').disabled = accessCurrentPage === 1;
+            document.getElementById('accessNextPage').disabled = accessCurrentPage === totalPages || totalPages === 0;
+            document.getElementById('accessLastPage').disabled = accessCurrentPage === totalPages || totalPages === 0;
+        }
+
+        // 更新响应记录分页信息
+        function updateResponsePagination() {
+            const totalPages = Math.ceil(responseTotalRecords / responsePageSize);
+            const startRecord = (responseCurrentPage - 1) * responsePageSize + 1;
+            const endRecord = Math.min(responseCurrentPage * responsePageSize, responseTotalRecords);
+
+            document.getElementById('responseStartRecord').textContent = responseTotalRecords > 0 ? startRecord : 0;
+            document.getElementById('responseEndRecord').textContent = endRecord;
+            document.getElementById('responseTotalRecords').textContent = responseTotalRecords;
+            document.getElementById('responseCurrentPage').textContent = responseCurrentPage;
+            document.getElementById('responseTotalPages').textContent = totalPages;
+
+            // 更新分页按钮状态
+            document.getElementById('responseFirstPage').disabled = responseCurrentPage === 1;
+            document.getElementById('responsePrevPage').disabled = responseCurrentPage === 1;
+            document.getElementById('responseNextPage').disabled = responseCurrentPage === totalPages || totalPages === 0;
+            document.getElementById('responseLastPage').disabled = responseCurrentPage === totalPages || totalPages === 0;
+        }
+
+        // 显示访问记录（分页）
+        function displayAccessLogs() {
+            const startIndex = (accessCurrentPage - 1) * accessPageSize;
+            const endIndex = startIndex + accessPageSize;
+            const pageData = filteredAccessLogs.slice(startIndex, endIndex);
+
+            updateAccessLogsTable(pageData);
+        }
+
+        // 显示响应记录（分页）
+        function displayResponseLogs() {
+            const startIndex = (responseCurrentPage - 1) * responsePageSize;
+            const endIndex = startIndex + responsePageSize;
+            const pageData = filteredResponseLogs.slice(startIndex, endIndex);
+
+            updateResponseLogsTable(pageData);
+        }
+
+        // 更新访问记录表格
+        function updateAccessLogsTable(logs) {
+            const tbody = document.getElementById('accessLogsBody');
+            tbody.innerHTML = '';
+
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td>${formatDateTime(log.beijing_time)}</td>
+                    <td>${log.user_ip || '-'}</td>
+                    <td>${formatLocation(log)}</td>
+                    <td>${log.device_type || '-'}</td>
+                    <td>${log.browser || '-'}</td>
+                    <td>${log.os || '-'}</td>
+                    <td>${log.language || '-'}</td>
+                    <td>${log.page_load_time ? log.page_load_time + 's' : '-'}</td>
+                    <td>${log.time_on_page ? log.time_on_page + 's' : '-'}</td>
+                    <td class="json-display" title="点击查看完整操作记录">${formatJSON(log.actions)}</td>
+                `;
+
+                // 为操作记录添加点击事件
+                const actionsCell = row.querySelector('.json-display');
+                if (log.actions && Object.keys(log.actions).length > 0) {
+                    actionsCell.addEventListener('click', () => {
+                        showJsonModal('用户操作记录', log.actions);
+                    });
+                } else {
+                    actionsCell.style.cursor = 'default';
+                    actionsCell.style.color = '#6B7280';
+                    actionsCell.style.textDecoration = 'none';
+                }
+
+                tbody.appendChild(row);
+            });
+        }
+
+        // 更新响应记录表格
+        function updateResponseLogsTable(logs) {
+            const tbody = document.getElementById('responseLogsBody');
+            tbody.innerHTML = '';
+
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td>${formatDateTime(log.beijing_time)}</td>
+                    <td><span class="px-2 py-1 text-xs rounded ${getStatusColor(log.status)}">${log.status || '-'}</span></td>
+                    <td>${log.processing_time ? log.processing_time + 's' : '-'}</td>
+                    <td>${log.siliconflow_request_time ? log.siliconflow_request_time + 's' : '-'}</td>
+                    <td class="json-display recognition-result" title="点击查看完整识别结果">${formatJSON(log.recognition_result)}</td>
+                    <td class="json-display calculated-scores" title="点击查看完整计算评分">${formatJSON(log.calculated_scores)}</td>
+                    <td class="json-display image-info" title="点击查看完整图片信息">${formatJSON(log.image_info)}</td>
+                    <td class="json-display error-info" title="点击查看完整错误信息">${log.error_message || '-'}</td>
+                `;
+
+                // 为识别结果添加点击事件
+                const recognitionCell = row.querySelector('.recognition-result');
+                if (log.recognition_result && Object.keys(log.recognition_result).length > 0) {
+                    recognitionCell.addEventListener('click', () => {
+                        showJsonModal('星级识别结果', log.recognition_result);
+                    });
+                } else {
+                    setInactiveStyle(recognitionCell);
+                }
+
+                // 为计算评分添加点击事件
+                const scoresCell = row.querySelector('.calculated-scores');
+                if (log.calculated_scores && Object.keys(log.calculated_scores).length > 0) {
+                    scoresCell.addEventListener('click', () => {
+                        showJsonModal('计算评分结果', log.calculated_scores);
+                    });
+                } else {
+                    setInactiveStyle(scoresCell);
+                }
+
+                // 为图片信息添加点击事件
+                const imageCell = row.querySelector('.image-info');
+                if (log.image_info && Object.keys(log.image_info).length > 0) {
+                    imageCell.addEventListener('click', () => {
+                        showJsonModal('图片信息', log.image_info);
+                    });
+                } else {
+                    setInactiveStyle(imageCell);
+                }
+
+                // 为错误信息添加点击事件
+                const errorCell = row.querySelector('.error-info');
+                if (log.error_message && log.error_message !== '-') {
+                    errorCell.addEventListener('click', () => {
+                        showJsonModal('错误信息', {
+                            error_type: log.error_type,
+                            error_message: log.error_message,
+                            error_code: log.error_code,
+                            user_impact: log.user_impact,
+                            business_impact: log.business_impact
+                        });
+                    });
+                } else {
+                    setInactiveStyle(errorCell);
+                }
+
+                tbody.appendChild(row);
+            });
+        }
+
+        // 设置非活动样式
+        function setInactiveStyle(element) {
+            element.style.cursor = 'default';
+            element.style.color = '#6B7280';
+            element.style.textDecoration = 'none';
+        }
+
+        // 辅助函数
+        function formatDateTime(dateTime) {
+            if (!dateTime) return '-';
+            return new Date(dateTime).toLocaleString('zh-CN');
+        }
+
+        function formatJSON(obj) {
+            if (!obj) return '-';
+            const str = JSON.stringify(obj);
+            return str.length > 50 ? str.substring(0, 50) + '...' : str;
+        }
+
+        function formatLocation(log) {
+            // 优先使用IP解析的地理位置信息
+            const country = log.ip_country || log.country || '';
+            const region = log.ip_region || log.region || '';
+            const city = log.ip_city || log.city || '';
+            const isp = log.ip_isp || '';
+
+            if (!country && !region && !city) {
+                return '-';
+            }
+
+            let location = '';
+            if (country && country !== '未知') location += country;
+            if (region && region !== '未知' && region !== country) {
+                location += (location ? ' ' : '') + region;
+            }
+            if (city && city !== '未知' && city !== region) {
+                location += (location ? ' ' : '') + city;
+            }
+            if (isp && isp !== '未知') {
+                location += (location ? ' (' : '(') + isp + ')';
+            }
+
+            return location || '-';
+        }
+
+        function getStatusColor(status) {
+            switch (status) {
+                case 'success': return 'bg-green-100 text-green-800';
+                case 'error': return 'bg-red-100 text-red-800';
+                case 'timeout': return 'bg-yellow-100 text-yellow-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        // 事件监听
+        loginBtn.addEventListener('click', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
+        refreshBtn.addEventListener('click', loadData);
+        accessLogsTab.addEventListener('click', () => switchTab('access'));
+        responseLogsTab.addEventListener('click', () => switchTab('response'));
+
+        // 访问记录筛选事件
+        document.getElementById('accessSearchBtn').addEventListener('click', () => {
+            accessFilters = {
+                time: document.getElementById('accessTimeFilter').value,
+                region: document.getElementById('accessRegionFilter').value,
+                city: document.getElementById('accessCityFilter').value,
+                os: document.getElementById('accessOsFilter').value
+            };
+            accessCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        document.getElementById('accessResetBtn').addEventListener('click', () => {
+            document.getElementById('accessTimeFilter').value = '';
+            document.getElementById('accessRegionFilter').value = '';
+            document.getElementById('accessCityFilter').value = '';
+            document.getElementById('accessOsFilter').value = '';
+            accessFilters = {};
+            accessCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        // 响应记录筛选事件
+        document.getElementById('responseSearchBtn').addEventListener('click', () => {
+            responseFilters = {
+                time: document.getElementById('responseTimeFilter').value,
+                status: document.getElementById('responseStatusFilter').value
+            };
+            responseCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        document.getElementById('responseResetBtn').addEventListener('click', () => {
+            document.getElementById('responseTimeFilter').value = '';
+            document.getElementById('responseStatusFilter').value = '';
+            responseFilters = {};
+            responseCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        // 访问记录分页事件
+        document.getElementById('accessFirstPage').addEventListener('click', () => {
+            accessCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        document.getElementById('accessPrevPage').addEventListener('click', () => {
+            if (accessCurrentPage > 1) {
+                accessCurrentPage--;
+                applyFiltersAndPagination();
+            }
+        });
+
+        document.getElementById('accessNextPage').addEventListener('click', () => {
+            const totalPages = Math.ceil(accessTotalRecords / accessPageSize);
+            if (accessCurrentPage < totalPages) {
+                accessCurrentPage++;
+                applyFiltersAndPagination();
+            }
+        });
+
+        document.getElementById('accessLastPage').addEventListener('click', () => {
+            const totalPages = Math.ceil(accessTotalRecords / accessPageSize);
+            accessCurrentPage = totalPages;
+            applyFiltersAndPagination();
+        });
+
+        document.getElementById('accessPageSize').addEventListener('change', (e) => {
+            accessPageSize = parseInt(e.target.value);
+            accessCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        // 响应记录分页事件
+        document.getElementById('responseFirstPage').addEventListener('click', () => {
+            responseCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        document.getElementById('responsePrevPage').addEventListener('click', () => {
+            if (responseCurrentPage > 1) {
+                responseCurrentPage--;
+                applyFiltersAndPagination();
+            }
+        });
+
+        document.getElementById('responseNextPage').addEventListener('click', () => {
+            const totalPages = Math.ceil(responseTotalRecords / responsePageSize);
+            if (responseCurrentPage < totalPages) {
+                responseCurrentPage++;
+                applyFiltersAndPagination();
+            }
+        });
+
+        document.getElementById('responseLastPage').addEventListener('click', () => {
+            const totalPages = Math.ceil(responseTotalRecords / responsePageSize);
+            responseCurrentPage = totalPages;
+            applyFiltersAndPagination();
+        });
+
+        document.getElementById('responsePageSize').addEventListener('change', (e) => {
+            responsePageSize = parseInt(e.target.value);
+            responseCurrentPage = 1;
+            applyFiltersAndPagination();
+        });
+
+        // 弹窗事件监听
+        closeModal.addEventListener('click', hideJsonModal);
+        copyJsonBtn.addEventListener('click', copyJsonData);
+
+        // 点击弹窗背景关闭
+        jsonModal.addEventListener('click', (e) => {
+            if (e.target === jsonModal) {
+                hideJsonModal();
+            }
+        });
+
+        // ESC键关闭弹窗
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !jsonModal.classList.contains('hidden')) {
+                hideJsonModal();
+            }
+        });
+
+        // 回车键登录
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleLogin();
+            }
+        });
+
+        // 页面加载时聚焦到密码输入框
+        passwordInput.focus();
+    </script>
+</body>
+</html>

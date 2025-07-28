@@ -2,6 +2,7 @@
   "name": "mt-grade-calculator",
   "version": "1.0.0",
   "description": "美团评分计算工具",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "dev": "vercel dev",
@@ -16,6 +17,9 @@
   "author": "茶百道陶溪川技术部",
   "license": "MIT",
   "dependencies": {
-    "dotenv": "^17.2.1"
+    "@supabase/supabase-js": "^2.53.0",
+    "dotenv": "^17.2.1",
+    "ip2region": "^2.3.0",
+    "node-fetch": "^3.3.2"
   }
 }

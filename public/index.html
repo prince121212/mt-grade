@@ -42,7 +42,8 @@
         <!-- 页面标题 -->
         <header class="text-center mb-10">
             <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-gray-800 mb-2">美团星级评价识别与评分计算工具</h1>
-            <p class="text-gray-600 text-lg">自动计算美团评分及期望评分所需好评量(王立猛监制)</p>
+            <p class="text-gray-600 text-lg">自动计算美团评分及期望评分所需好评量</p>
+            <p class="text-gray-600 text-lg">(王立猛监制)</p>
         </header>
 
         <!-- 主要内容区 -->
@@ -186,6 +187,9 @@
         </footer>
     </div>
 
+    <!-- 引入分析脚本 -->
+    <script src="/js/analytics.js"></script>
+
     <script>
         // DOM 元素
         const dropArea = document.getElementById('dropArea');
@@ -281,17 +285,26 @@
         function handleFiles(file) {
             if (!file.type.match('image.*')) {
                 showError('请选择图片文件');
+                window.analytics.recordError('Invalid file type', 'file_upload');
                 return;
             }
 
             selectedFile = file;
             recognizeBtn.disabled = false;
 
+            // 记录文件上传
+            window.analytics.recordFileUpload({
+                size: file.size,
+                type: file.type,
+                name: file.name
+            });
+
             const reader = new FileReader();
             reader.onload = (e) => {
                 imageDataUrl = e.target.result;
                 previewImage.src = imageDataUrl;
                 previewContainer.classList.remove('hidden');
+                window.analytics.recordAction('image_preview_shown');
             };
             reader.readAsDataURL(file);
 
@@ -370,7 +383,12 @@
         recognizeBtn.addEventListener('click', async () => {
             if (!selectedFile || !imageDataUrl) return;
 
+            // 记录按钮点击
+            window.analytics.recordButtonClick('recognize_btn');
+            window.analytics.recordApiStart();
+
             showLoading();
+            const apiStartTime = Date.now();
 
             try {
                 const response = await fetch('/api/recognize', {
@@ -383,11 +401,20 @@
                     })
                 });
 
+                const apiDuration = Date.now() - apiStartTime;
                 const result = await response.json();
 
                 if (!response.ok || !result.success) {
+                    window.analytics.recordApiEnd(false, apiDuration, result.error);
                     throw new Error(result.error || `API请求失败 (状态码: ${response.status})`);
                 }
+
+                // 记录API成功
+                window.analytics.recordApiEnd(true, apiDuration);
+                window.analytics.recordAction('recognition_success', {
+                    total_reviews: Object.values(result.data).reduce((sum, count) => sum + count, 0),
+                    processing_time: apiDuration
+                });
 
                 const starResult = result.data;
                 starResultText.textContent = JSON.stringify(starResult, null, 2);
@@ -395,19 +422,30 @@
                 // 显示分析完成状态
                 showAnalysisComplete();
 
-                // 计算评分
-                calculateScores(starResult);
+                // 计算评分（使用后端返回的计算结果）
+                if (result.scores) {
+                    displayCalculatedScores(result.scores);
+                } else {
+                    calculateScores(starResult);
+                }
 
             } catch (error) {
+                const apiDuration = Date.now() - apiStartTime;
                 console.error('识别错误:', error);
+                window.analytics.recordApiEnd(false, apiDuration, error.message);
+                window.analytics.recordError(error, 'api_recognition');
                 showError(error.message || '识别过程中发生错误，请重试');
             }
         });
 
         // 复制星级结果
         starCopyBtn.addEventListener('click', () => {
+            window.analytics.recordButtonClick('copy_result_btn');
+
             const text = starResultText.textContent;
             navigator.clipboard.writeText(text).then(() => {
+                window.analytics.recordAction('result_copied');
+
                 const originalText = starCopyBtn.innerHTML;
                 starCopyBtn.innerHTML = '<i class="fa fa-check mr-2"></i>已复制';
                 starCopyBtn.classList.remove('bg-gray-200', 'hover:bg-gray-300');
@@ -418,8 +456,31 @@
                     starCopyBtn.classList.remove('bg-green-200', 'hover:bg-green-300');
                     starCopyBtn.classList.add('bg-gray-200', 'hover:bg-gray-300');
                 }, 2000);
+            }).catch(error => {
+                window.analytics.recordError(error, 'copy_to_clipboard');
             });
         });
+
+        // 显示后端计算的评分结果
+        function displayCalculatedScores(scores) {
+            totalReviews.textContent = `总评价数：${scores.total_reviews} 条`;
+
+            if (scores.total_reviews > 0) {
+                meituanScore.textContent = scores.current_score.toFixed(1);
+
+                needFor47.textContent = `${scores.targets['4.7'].needed} 条5星评价`;
+                needFor48.textContent = `${scores.targets['4.8'].needed} 条5星评价`;
+                needFor49.textContent = `${scores.targets['4.9'].needed} 条5星评价`;
+            } else {
+                meituanScore.textContent = '0.0（无评价）';
+                needFor47.textContent = '无法计算（无评价）';
+                needFor48.textContent = '无法计算（无评价）';
+                needFor49.textContent = '无法计算（无评价）';
+            }
+
+            scoreInitialMessage.classList.add('hidden');
+            scoreResultContainer.classList.remove('hidden');
+        }
 
         // 状态控制函数
         function showLoading() {
