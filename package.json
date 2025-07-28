@@ -1,0 +1,21 @@
+{
+  "name": "mt-grade-calculator",
+  "version": "1.0.0",
+  "description": "美团评分计算工具",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Build completed'",
+    "start": "vercel dev"
+  },
+  "keywords": [
+    "meituan",
+    "rating",
+    "calculator"
+  ],
+  "author": "茶百道陶溪川技术部",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.1"
+  }
+}
